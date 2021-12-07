@@ -4,7 +4,6 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.image import MIMEImage
 from lxml import etree
-from jsonpath import jsonpath
 
 
 def spider():
@@ -20,6 +19,8 @@ def spider():
     # 获取每个电影对应的链接地址
     link_list = html.xpath('//div[@class="tjlist"]/ul/li/a/@href')
     magnet = ''
+    index = 0
+    # 遍历每个电影的html页面
     for link in link_list:
         res = session.get(link)
         # 创建element对象
@@ -30,12 +31,24 @@ def spider():
         temp_mag = temp_html.xpath('//td[contains(text(),"磁力")]/a/@href')
         # 磁力资源描述
         temp_name = temp_html.xpath('//td[contains(text(),"磁力")]/a/text()')
+
+        movie_img = temp_html.xpath('//div[@id="text"]/p[1]/img/@src')
+        if len(movie_img):
+            try:
+                res = session.get(movie_img[0])
+                if res.ok:
+                    with open(f"./image_{index}.jpg", "wb") as f:
+                        f.write(res.content)
+            except:
+                print(movie_name[0] + "图片获取失败")
+
         magnet += "{}\n".format(movie_name[0])
         for x, y in zip(temp_name, temp_mag):
             magnet += "\n{}:\n{}\n".format(x, y)
         magnet += '\n'
+        index += 1
     # 将磁力链接存入文本中
-    with open("magnet.txt", "wb") as f:
+    with open("./magnet.txt", "wb") as f:
         f.write(bytes(magnet, encoding="utf-8"))
 
     movie_name_list = []
@@ -45,18 +58,12 @@ def spider():
      <body> """
     index = 0
     for i in movie_list:
+        # 获取每个电影名
         movie_name = (i.xpath('./p/a/text()'))
+        # 获取每个电影的链接
         movie_link = (i.xpath('./p/a/@href'))
-        movie_img = (i.xpath('.//img/@src'))
         movie_name_list.append(movie_name[0])
-        if len(movie_img):
-            try:
-                res = session.get(movie_img[0])
-                if res.ok:
-                    with open(f"image_{index}.jpg", "wb") as f:
-                        f.write(res.content)
-            except:
-                print(movie_name[0] + "图片获取失败")
+
         html += """
             <div>
                 <p>{0}</p>
@@ -71,7 +78,7 @@ def spider():
     </body> 
     </html> 
     """
-    with open("temp.html", "wb") as f:
+    with open("./temp.html", "wb") as f:
         f.write(bytes(html, "utf-8"))
     return movie_name_list
 
@@ -92,14 +99,14 @@ def sendMail():
 
     # 正文
     movie_name = spider()
-    with open("temp.html", "rb") as f:
+    with open("./temp.html", "rb") as f:
         content = f.read()
     part1 = MIMEText(content, "html", "utf-8")
     message.attach(part1)
     index = 0
     for name in movie_name:
         try:
-            with open(f"image_{index}.jpg", "rb") as f:
+            with open(f"./image_{index}.jpg", "rb") as f:
                 sendImageFile = f.read()
                 image = MIMEImage(sendImageFile)
                 image.add_header('Content-ID', "<image_%x>" % index)
@@ -110,7 +117,7 @@ def sendMail():
             index += 1
 
     # 附件
-    with open('magnet.txt', "rb") as f:
+    with open('./magnet.txt', "rb") as f:
         content2 = f.read()
     part2 = MIMEText(content2, "plain", "utf-8")
     part2['Content-Type'] = 'application/octet-stream'
